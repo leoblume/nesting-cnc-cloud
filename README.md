@@ -37,6 +37,10 @@ Sem essas variáveis o app cai automaticamente para o `localStorage` (ver
 O `wrangler.jsonc` já define `not_found_handling: "single-page-application"`,
 o que faz o Worker servir `index.html` para qualquer rota que não bata com um
 arquivo do build — necessário para as rotas internas do TanStack Router
-funcionarem ao recarregar a página. O arquivo `public/_redirects` foi mantido
-por precaução, mas não é mais necessário nesse fluxo (era usado no Netlify e
-no antigo Cloudflare Pages clássico).
+funcionarem ao recarregar a página.
+
+**Importante:** não adicione um arquivo `public/_redirects` neste projeto. Ele
+era usado no Netlify e no Cloudflare Pages clássico, mas nesse fluxo (Workers
+Builds) o Wrangler também tenta interpretá-lo como regras de redirect e entra
+em loop infinito com o próprio `not_found_handling: "single-page-application"`
+(erro `code: 100324`), pois ambos tentam reescrever a rota para `/index.html`.
