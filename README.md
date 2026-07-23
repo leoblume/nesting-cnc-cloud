@@ -1,25 +1,28 @@
 # NestCNC
 
-## Deploy no Cloudflare Pages
+## Deploy no Cloudflare (Workers Builds)
 
-Este projeto é uma SPA estática (Vite + React + TanStack Router). O deploy é feito
-via **Cloudflare Pages**, conectado diretamente ao repositório do GitHub.
+Este projeto é uma SPA estática (Vite + React + TanStack Router). O deploy é
+feito via **Workers Builds**, o CI/CD nativo da Cloudflare conectado ao
+GitHub. Ele builda o projeto e implanta via **Wrangler**, usando o arquivo
+`wrangler.jsonc` na raiz do projeto (já configurado para servir `./dist` como
+uma SPA).
 
-Configuração do build (usada na criação do projeto no dashboard da Cloudflare):
+Configuração usada na tela de "Import a repository / Set up deployment":
 
 | Campo | Valor |
 |---|---|
-| Framework preset | `Vite` |
 | Build command | `npm run build` |
-| Build output directory | `dist` |
-| Root directory | `/` (ou a pasta do projeto, se o repo tiver subpastas) |
-| Node version | `20` (definida pelo arquivo `.nvmrc`) |
+| Deploy command | `npx wrangler deploy` |
+| Non-production branch deploy command | `npx wrangler versions upload` |
+| Path (root directory) | `/` (ou a subpasta do projeto, se o repo tiver subpastas) |
 
 ### Variáveis de ambiente (Supabase)
 
-Se o app usa o Supabase compartilhado (em vez do cache local via `localStorage`),
-defina estas variáveis em **Settings → Environment variables** do projeto no
-Cloudflare Pages (em Production e em Preview):
+Como o Vite faz a leitura de `VITE_*` **em tempo de build** (não em runtime),
+essas variáveis precisam ser cadastradas como **Build variables and secrets**
+(não como "Variables & Secrets" do Worker em runtime, que só afeta o próprio
+Worker depois de implantado):
 
 ```
 VITE_SUPABASE_URL=https://xxxx.supabase.co
@@ -31,6 +34,9 @@ Sem essas variáveis o app cai automaticamente para o `localStorage` (ver
 
 ### Roteamento SPA
 
-O arquivo `public/_redirects` (`/* /index.html 200`) garante que rotas internas
-do TanStack Router funcionem corretamente ao recarregar a página ou acessar uma
-URL direta — é o equivalente ao redirect que antes estava no `netlify.toml`.
+O `wrangler.jsonc` já define `not_found_handling: "single-page-application"`,
+o que faz o Worker servir `index.html` para qualquer rota que não bata com um
+arquivo do build — necessário para as rotas internas do TanStack Router
+funcionarem ao recarregar a página. O arquivo `public/_redirects` foi mantido
+por precaução, mas não é mais necessário nesse fluxo (era usado no Netlify e
+no antigo Cloudflare Pages clássico).
