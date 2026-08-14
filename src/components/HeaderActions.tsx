@@ -11,7 +11,7 @@ import { buildSheetDxf, downloadDxf } from "@/lib/nesting/dxfExport";
 import { printLedPlan } from "@/lib/leds/ledPrint";
 import type { NestResult, NestingOptions } from "@/lib/nesting/nesting";
 import type { OverlapPair } from "@/lib/nesting/overlapCheck";
-import type { LedModel, LedAssignment } from "@/lib/leds/ledEngine";
+import type { LedModel, LedAssignment, LedMode } from "@/lib/leds/ledEngine";
 import type { groupParts } from "@/lib/nesting/parser";
 
 interface Props {
@@ -24,7 +24,8 @@ interface Props {
   ledModels: LedModel[];
   selectedLedId: string | null;
   ledAssignments: LedAssignment;
-  letterHeight: number | null;
+  ledMode: LedMode;
+  ledDensity: number;
   onOpenBudget: () => void;
 }
 
@@ -45,7 +46,8 @@ export function HeaderActions({
   ledModels,
   selectedLedId,
   ledAssignments,
-  letterHeight,
+  ledMode,
+  ledDensity,
   onOpenBudget,
 }: Props) {
   const hasNesting = !!result;
@@ -79,7 +81,8 @@ export function HeaderActions({
           ledModels,
           selectedLedId,
           ledAssignments,
-          letterHeight,
+          ledMode,
+          ledDensity,
           fileName || "sem-nome.pdf",
         ),
     },

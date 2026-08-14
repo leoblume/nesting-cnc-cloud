@@ -3,14 +3,15 @@
 // de LED calculado e a quantidade de peças — sem dados técnicos extras
 // (dimensão da peça, pitch, LEDs/peça, total de LEDs, potência).
 import { groupParts } from "@/lib/nesting/parser";
-import { calcLedsForPart, calcLedsForBbox, type LedModel, type LedAssignment } from "./ledEngine";
+import { calcLedsForPart, calcLedsForBbox, type LedModel, type LedAssignment, type LedMode } from "./ledEngine";
 
 export function printLedPlan(
   groups: ReturnType<typeof groupParts>,
   ledModels: LedModel[],
   selectedLedId: string | null,
   ledAssignments: LedAssignment,
-  letterHeight: number | null,
+  ledMode: LedMode,
+  ledDensity: number,
   fileName: string,
 ) {
   const win = window.open("", "_blank", "width=1200,height=900");
@@ -40,12 +41,12 @@ export function printLedPlan(
     const poly = g.parts[0]?.outer ?? [];
     const holes = g.parts[0]?.holes ?? [];
 
-    let positions: Array<{ x: number; y: number }> = [];
+    let positions: Array<{ x: number; y: number; angle?: number }> = [];
     let bestRotation: 0 | 90 = 0;
     let ledsPerPiece = 0;
 
     if (ledModel && poly.length) {
-      const r = calcLedsForPart(poly, holes, ledModel, 0, letterHeight, 0);
+      const r = calcLedsForPart(poly, holes, ledModel, ledMode, ledDensity);
       positions = r.positions; bestRotation = r.bestRotation;
       ledsPerPiece = positions.length;
     }
@@ -98,15 +99,24 @@ export function printLedPlan(
           const lx = ox + (pos.x - pminX) * S;
           const ly = oy + (pos.y - pminY) * S;
           ctx.fillStyle = "#fbbf24"; ctx.strokeStyle = "#92400e"; ctx.lineWidth = 0.5;
-          ctx.fillRect(lx - lw / 2, ly - lh / 2, lw, lh);
-          ctx.strokeRect(lx - lw / 2, ly - lh / 2, lw, lh);
+          if (pos.angle) {
+            ctx.save();
+            ctx.translate(lx, ly);
+            ctx.rotate(pos.angle + Math.PI / 2);
+            ctx.fillRect(-lw / 2, -lh / 2, lw, lh);
+            ctx.strokeRect(-lw / 2, -lh / 2, lw, lh);
+            ctx.restore();
+          } else {
+            ctx.fillRect(lx - lw / 2, ly - lh / 2, lw, lh);
+            ctx.strokeRect(lx - lw / 2, ly - lh / 2, lw, lh);
+          }
         }
       }
     } else {
       ctx.fillStyle = "#dbeafe"; ctx.strokeStyle = "#1d4ed8"; ctx.lineWidth = 1;
       ctx.fillRect(ox, oy, pw, ph); ctx.strokeRect(ox, oy, pw, ph);
       if (ledModel) {
-        const { ledsX, ledsY } = calcLedsForBbox(g.width, g.height, ledModel, 0, letterHeight, 0);
+        const { ledsX, ledsY } = calcLedsForBbox(g.width, g.height, ledModel, ledMode, ledDensity);
         ledsPerPiece = ledsX * ledsY;
         const lw = Math.max(3, ledModel.width * S);
         const lh = Math.max(3, ledModel.height * S);

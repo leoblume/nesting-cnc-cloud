@@ -1,5 +1,4 @@
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -8,9 +7,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Lightbulb, Plus, RefreshCw, Trash2, Zap } from "lucide-react";
+import { Slider } from "@/components/ui/slider";
+import { Lightbulb, Plus, RefreshCw, Trash2, Zap, Sun, SunMedium, Gauge } from "lucide-react";
 import { LedDrawingCanvas } from "./LedDrawingCanvas";
-import type { LedModel, LedAssignment } from "@/lib/leds/ledEngine";
+import { LED_DENSITY_MIN, LED_DENSITY_MAX, LED_DENSITY_DEFAULT, type LedModel, type LedAssignment, type LedMode } from "@/lib/leds/ledEngine";
 import type { groupParts } from "@/lib/nesting/parser";
 
 interface LedSummary {
@@ -21,20 +21,18 @@ interface LedSummary {
 
 export function LedCalculatorView({
   groups, ledModels,
-  letterHeightInput, setLetterHeightInput, setLetterHeight,
   computedPitch,
   selectedLedId, setSelectedLedId, setRenderedLedId, setLedKey,
   ledAssignments, assignLedToGroup, clearGroupAssignment,
   ledSummary,
-  ledKey, activeLedForDisplay, handleUpdateLed, letterHeight,
+  ledKey, activeLedForDisplay, handleUpdateLed,
   goToLedCad,
   fileName,
+  ledMode, setLedMode,
+  ledDensity, setLedDensity,
 }: {
   groups: ReturnType<typeof groupParts>;
   ledModels: LedModel[];
-  letterHeightInput: string;
-  setLetterHeightInput: (v: string) => void;
-  setLetterHeight: (v: number | null) => void;
   computedPitch: { pitchX: number; pitchY: number } | null;
   selectedLedId: string | null;
   setSelectedLedId: (id: string) => void;
@@ -47,9 +45,12 @@ export function LedCalculatorView({
   ledKey: number;
   activeLedForDisplay: LedModel | null;
   handleUpdateLed: () => void;
-  letterHeight: number | null;
   goToLedCad: () => void;
   fileName: string;
+  ledMode: LedMode;
+  setLedMode: (m: LedMode) => void;
+  ledDensity: number;
+  setLedDensity: (d: number) => void;
 }) {
   return (
     <div className="flex flex-1 overflow-hidden">
@@ -64,29 +65,62 @@ export function LedCalculatorView({
           </div>
         </div>
 
+        <div className="flex flex-col gap-1.5">
+          <Label className="text-[10px] text-muted-foreground uppercase tracking-wider">Tipo de letra</Label>
+          <div className="flex rounded-lg border border-border p-1 gap-1">
+            <button
+              onClick={() => setLedMode("retroiluminada")}
+              className={`flex flex-1 items-center justify-center gap-1.5 rounded px-2 py-1.5 text-xs font-medium transition-colors ${
+                ledMode === "retroiluminada" ? "bg-yellow-500/20 text-yellow-300" : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <SunMedium className="h-3.5 w-3.5" /> Retroiluminada
+            </button>
+            <button
+              onClick={() => setLedMode("backlight")}
+              className={`flex flex-1 items-center justify-center gap-1.5 rounded px-2 py-1.5 text-xs font-medium transition-colors ${
+                ledMode === "backlight" ? "bg-yellow-500/20 text-yellow-300" : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <Sun className="h-3.5 w-3.5" /> Backlight
+            </button>
+          </div>
+          <p className="text-[9px] text-muted-foreground/70">
+            {ledMode === "retroiluminada"
+              ? "LEDs seguem o perímetro externo da letra (ou a linha central, se for um canal fino vazado)."
+              : "LEDs preenchem toda a área da letra (chapa translúcida difusora)."}
+          </p>
+        </div>
 
         <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/5 p-3 flex flex-col gap-2">
-          <Label className="text-[10px] font-semibold text-yellow-300 uppercase tracking-wider">Altura da letra (mm) — opcional</Label>
-          <div className="flex gap-2 items-center">
-            <Input
-              type="number" min={1} step={1} placeholder="Ex: 100"
-              value={letterHeightInput}
-              onChange={(e) => {
-                setLetterHeightInput(e.target.value);
-                const v = parseFloat(e.target.value);
-                setLetterHeight(!isNaN(v) && v > 0 ? v : null);
-              }}
-              className="h-7 text-xs flex-1"
-            />
+          <div className="flex items-center justify-between">
+            <Label className="text-[10px] font-semibold text-yellow-300 uppercase tracking-wider flex items-center gap-1.5">
+              <Gauge className="h-3 w-3" /> Densidade dos LEDs
+            </Label>
             {computedPitch && (
               <div className="text-[10px] text-yellow-300 font-mono whitespace-nowrap">
                 pitch → <strong>{computedPitch.pitchX.toFixed(1)} / {computedPitch.pitchY.toFixed(1)} mm</strong>
               </div>
             )}
           </div>
-          <p className="text-[9px] text-yellow-400/70">
-            Apenas para anotação — o pitch é sempre calculado a partir do módulo LED cadastrado mais os seus respectivos espaçamentos.
-          </p>
+          <Slider
+            min={LED_DENSITY_MIN}
+            max={LED_DENSITY_MAX}
+            step={0.05}
+            value={[ledDensity]}
+            onValueChange={([v]) => setLedDensity(v)}
+          />
+          <div className="flex items-center justify-between text-[9px] text-muted-foreground/70">
+            <span>← mais espaço (menos LEDs)</span>
+            <button
+              onClick={() => setLedDensity(LED_DENSITY_DEFAULT)}
+              className="underline decoration-dotted hover:text-yellow-300"
+              title="Restaurar padrão"
+            >
+              padrão
+            </button>
+            <span>mais denso (mais LEDs) →</span>
+          </div>
         </div>
 
         <div className="flex flex-col gap-1.5">
@@ -232,8 +266,8 @@ export function LedCalculatorView({
                 ledModels={ledModels}
                 selectedLedId={activeLedForDisplay?.id ?? selectedLedId}
                 ledAssignments={ledAssignments}
-                letterHeight={letterHeight}
-                ledRotation={0}
+                ledMode={ledMode}
+                ledDensity={ledDensity}
               />
             </div>
           </div>

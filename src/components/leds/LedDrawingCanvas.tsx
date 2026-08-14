@@ -1,22 +1,22 @@
 import { useCallback, useEffect, useRef } from "react";
 import { type Point } from "@/lib/nesting/geometry";
 import { type groupParts } from "@/lib/nesting/parser";
-import { calcLedsForPart, calcLedsForBbox, type LedModel, type LedAssignment } from "@/lib/leds/ledEngine";
+import { calcLedsForPart, calcLedsForBbox, type LedModel, type LedAssignment, type LedMode } from "@/lib/leds/ledEngine";
 
 export function LedDrawingCanvas({
   groups,
   ledModels,
   selectedLedId,
   ledAssignments,
-  letterHeight = null,
-  ledRotation = 0,
+  ledMode = "retroiluminada",
+  ledDensity = 1,
 }: {
   groups: ReturnType<typeof groupParts>;
   ledModels: LedModel[];
   selectedLedId: string | null;
   ledAssignments: LedAssignment;
-  letterHeight?: number | null;
-  ledRotation?: 0 | 90;
+  ledMode?: LedMode;
+  ledDensity?: number;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -118,7 +118,7 @@ export function LedDrawingCanvas({
         }
 
         if (ledModel) {
-          const ledResult = calcLedsForPart(poly, holes, ledModel, 0, letterHeight, ledRotation);
+          const ledResult = calcLedsForPart(poly, holes, ledModel, ledMode, ledDensity);
           const { positions, totalLeds, bestRotation: partRot } = ledResult;
 
           const rawW = partRot === 90 ? ledModel.height : ledModel.width;
@@ -132,8 +132,19 @@ export function LedDrawingCanvas({
             ctx.fillStyle = "#facc15";
             ctx.strokeStyle = "#a16207";
             ctx.lineWidth = 0.5;
-            ctx.fillRect(lx - ledW / 2, ly - ledH / 2, ledW, ledH);
-            ctx.strokeRect(lx - ledW / 2, ly - ledH / 2, ledW, ledH);
+            if (pos.angle) {
+              // Modo retroiluminada: módulo acompanha a direção do caminho
+              // (perímetro/linha central), com a largura atravessando a faixa.
+              ctx.save();
+              ctx.translate(lx, ly);
+              ctx.rotate(pos.angle + Math.PI / 2);
+              ctx.fillRect(-ledW / 2, -ledH / 2, ledW, ledH);
+              ctx.strokeRect(-ledW / 2, -ledH / 2, ledW, ledH);
+              ctx.restore();
+            } else {
+              ctx.fillRect(lx - ledW / 2, ly - ledH / 2, ledW, ledH);
+              ctx.strokeRect(lx - ledW / 2, ly - ledH / 2, ledW, ledH);
+            }
           }
 
           ctx.fillStyle = "#475569";
@@ -154,7 +165,7 @@ export function LedDrawingCanvas({
           ctx.textBaseline = "top";
           ctx.fillText(ledModel.name, ox + pw / 2, oy + ph + 20);
 
-          const { totalLeds: bboxTotal } = calcLedsForBbox(g.width, g.height, ledModel, 0, letterHeight, ledRotation);
+          const { totalLeds: bboxTotal } = calcLedsForBbox(g.width, g.height, ledModel, ledMode, ledDensity);
           const coverage = bboxTotal > 0 ? Math.round((totalLeds / bboxTotal) * 100) : 0;
           ctx.fillStyle = "#15803d";
           ctx.font = "8px monospace";
@@ -193,7 +204,7 @@ export function LedDrawingCanvas({
         ctx.strokeRect(ox, oy, pw, ph);
 
         if (ledModel) {
-          const { totalLeds } = calcLedsForBbox(g.width, g.height, ledModel, 0, letterHeight, ledRotation);
+          const { totalLeds } = calcLedsForBbox(g.width, g.height, ledModel, ledMode, ledDensity);
           ctx.fillStyle = "#64748b";
           ctx.font = "9px monospace";
           ctx.textAlign = "center";
@@ -207,7 +218,7 @@ export function LedDrawingCanvas({
         }
       }
     });
-  }, [groups, ledModels, selectedLedId, ledAssignments, letterHeight, ledRotation, resolveLed]);
+  }, [groups, ledModels, selectedLedId, ledAssignments, ledMode, ledDensity, resolveLed]);
 
   return (
     <div className="flex flex-col gap-2">

@@ -20,7 +20,7 @@ export function LedRegistrationPanel({
   onSelect: (id: string) => void;
   loading?: boolean;
 }) {
-  const [form, setForm] = useState({ name: "", width: 15, height: 15, power: 0.5, spacingX: 30, spacingY: 30 });
+  const [form, setForm] = useState({ name: "", width: 15, height: 15, power: 0.5 });
   const [photoUrl, setPhotoUrl] = useState<string | undefined>();
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -40,11 +40,9 @@ export function LedRegistrationPanel({
       width: form.width,
       height: form.height,
       power: form.power,
-      spacingX: form.spacingX,
-      spacingY: form.spacingY,
       photoUrl,
     });
-    setForm({ name: "", width: 15, height: 15, power: 0.5, spacingX: 30, spacingY: 30 });
+    setForm({ name: "", width: 15, height: 15, power: 0.5 });
     setPhotoUrl(undefined);
     if (fileRef.current) fileRef.current.value = "";
   };
@@ -78,7 +76,6 @@ export function LedRegistrationPanel({
                 <p className="text-sm font-medium truncate">{led.name}</p>
                 <p className="text-xs text-muted-foreground">
                   {led.width} × {led.height} mm · {led.power} W/un
-                  {led.spacingX !== undefined && ` · Espaçamento: ${led.spacingX}x${led.spacingY}mm`}
                 </p>
               </div>
               {selectedId === led.id && (
@@ -146,20 +143,9 @@ export function LedRegistrationPanel({
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-2">
-          <div className="flex flex-col gap-1">
-            <Label className="text-xs text-muted-foreground">Espaçamento Horiz. (mm)</Label>
-            <Input type="number" min={0} step={1} value={form.spacingX}
-              onChange={(e) => { const v = parseFloat(e.target.value); if (!isNaN(v) && v >= 0) setForm((f) => ({ ...f, spacingX: v })); }}
-              className="h-8 text-sm" />
-          </div>
-          <div className="flex flex-col gap-1">
-            <Label className="text-xs text-muted-foreground">Espaçamento Vert. (mm)</Label>
-            <Input type="number" min={0} step={1} value={form.spacingY}
-              onChange={(e) => { const v = parseFloat(e.target.value); if (!isNaN(v) && v >= 0) setForm((f) => ({ ...f, spacingY: v })); }}
-              className="h-8 text-sm" />
-          </div>
-        </div>
+        <p className="text-[10px] text-muted-foreground/80 -mt-1">
+          O espaçamento entre módulos agora é calculado automaticamente (metade da largura/altura do LED) — não precisa mais ser cadastrado.
+        </p>
 
         <Button onClick={handleAdd} disabled={!form.name.trim()} variant="secondary" className="w-full h-8 text-sm">
           <Plus className="h-3.5 w-3.5 mr-1" /> Adicionar LED

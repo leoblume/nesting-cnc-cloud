@@ -8,7 +8,7 @@ import { renderSheet } from "@/lib/nesting/render";
 import { detectOverlaps } from "@/lib/nesting/overlapCheck";
 
 import { fetchLedModels, getCachedLedModels } from "@/lib/leds/ledModelsRepo";
-import { calcLedPitch, calcLedsForPart, calcLedsForBbox, type LedModel, type LedAssignment } from "@/lib/leds/ledEngine";
+import { calcLedPitch, calcLedsForPart, calcLedsForBbox, LED_DENSITY_DEFAULT, type LedModel, type LedAssignment, type LedMode } from "@/lib/leds/ledEngine";
 
 import { NestingSidebar } from "@/components/nesting/NestingSidebar";
 import { NestingMainView } from "@/components/nesting/NestingMainView";
@@ -39,10 +39,10 @@ export default function NestingApp() {
     try { return localStorage.getItem("nestcnc_led_selected"); } catch { return null; }
   });
   const [ledAssignments, setLedAssignments] = useState<LedAssignment>({});
-  const [letterHeight, setLetterHeight] = useState<number | null>(null);
-  const [letterHeightInput, setLetterHeightInput] = useState("");
   const [renderedLedId, setRenderedLedId] = useState<string | null>(null);
   const [ledKey, setLedKey] = useState(0);
+  const [ledMode, setLedMode] = useState<LedMode>("retroiluminada");
+  const [ledDensity, setLedDensity] = useState<number>(LED_DENSITY_DEFAULT);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -73,7 +73,7 @@ export default function NestingApp() {
   useEffect(() => {
     setRenderedLedId(selectedLedId);
     setLedKey((k) => k + 1);
-  }, [selectedLedId, letterHeight, ledModelsKey]);
+  }, [selectedLedId, ledModelsKey, ledMode, ledDensity]);
 
   const onFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] ?? null;
@@ -178,10 +178,10 @@ export default function NestingApp() {
 
       let ledsPerPiece = 0, pitch = 0, pitchX = 0, pitchY = 0;
       if (poly.length) {
-        const r = calcLedsForPart(poly, holes, ledModel, 0, letterHeight, 0);
+        const r = calcLedsForPart(poly, holes, ledModel, ledMode, ledDensity);
         ledsPerPiece = r.totalLeds; pitch = r.pitch; pitchX = r.pitchX; pitchY = r.pitchY;
       } else {
-        const r = calcLedsForBbox(g.width, g.height, ledModel, 0, letterHeight, 0);
+        const r = calcLedsForBbox(g.width, g.height, ledModel, ledMode, ledDensity);
         ledsPerPiece = r.totalLeds; pitch = r.pitch; pitchX = r.pitchX; pitchY = r.pitchY;
       }
 
@@ -200,12 +200,12 @@ export default function NestingApp() {
     const totalLeds = rows.reduce((s, r) => s + r.totalLeds, 0);
     const totalPower = rows.reduce((s, r) => s + r.totalPower, 0);
     return { rows, totalLeds, totalPower };
-  }, [groups, ledModels, selectedLedId, ledAssignmentsKey, letterHeight, ledKey]);
+  }, [groups, ledModels, selectedLedId, ledAssignmentsKey, ledKey, ledMode, ledDensity]);
 
   const currentSheetParts = result?.sheets[activeSheet] ?? [];
   const activeLedForDisplay = ledModels.find((l) => l.id === renderedLedId) ?? null;
 
-  const computedPitch = selectedLed ? calcLedPitch(selectedLed, 0) : null;
+  const computedPitch = selectedLed ? calcLedPitch(selectedLed, 0, ledDensity) : null;
 
   return (
     <div className="flex h-screen flex-col bg-background text-foreground">
@@ -242,7 +242,8 @@ export default function NestingApp() {
           ledModels={ledModels}
           selectedLedId={selectedLedId}
           ledAssignments={ledAssignments}
-          letterHeight={letterHeight}
+          ledMode={ledMode}
+          ledDensity={ledDensity}
           onOpenBudget={() => setShowBudget(true)}
         />
       </header>
@@ -288,9 +289,6 @@ export default function NestingApp() {
             <LedCalculatorView
               groups={groups}
               ledModels={ledModels}
-              letterHeightInput={letterHeightInput}
-              setLetterHeightInput={setLetterHeightInput}
-              setLetterHeight={setLetterHeight}
               computedPitch={computedPitch}
               selectedLedId={selectedLedId}
               setSelectedLedId={(id) => setSelectedLedId(id)}
@@ -303,9 +301,12 @@ export default function NestingApp() {
               ledKey={ledKey}
               activeLedForDisplay={activeLedForDisplay}
               handleUpdateLed={handleUpdateLed}
-              letterHeight={letterHeight}
               goToLedCad={() => setActiveTab("ledcad")}
               fileName={fileName}
+              ledMode={ledMode}
+              setLedMode={setLedMode}
+              ledDensity={ledDensity}
+              setLedDensity={setLedDensity}
             />
           )}
 
