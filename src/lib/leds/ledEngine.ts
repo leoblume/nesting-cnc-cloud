@@ -138,25 +138,31 @@ export function shrinkPolygon(poly: Point[], margin: number): Point[] {
   return offsetPolygon(poly, -margin);
 }
 
-// ─── Pitch: a distância entre LEDs é a própria dimensão do módulo menos 15%
-// — largura (X) do módulo -15%, altura (Y) do módulo -15%. `density` é um
-// multiplicador ajustável pelo usuário (barra de densidade): density > 1
-// encolhe a distância (mais LEDs), density < 1 aumenta a distância (menos
-// LEDs). density = 1 é a distância padrão (dimensão -15%).
+// ─── Pitch: a "distância" pedida (dimensão do módulo -15%) é o ESPAÇO VAZIO
+// entre um módulo e o próximo — não o pitch (centro a centro) direto. Usar
+// esse valor como pitch fazia os módulos ficarem menores que o próprio
+// tamanho do LED, sobrepondo-os (sem espaço nenhum). Corrigido: o pitch real
+// = tamanho do módulo + espaço (dimensão -15%).
+// `density` é um multiplicador ajustável pelo usuário (barra de densidade):
+// density > 1 encolhe o espaço (mais LEDs), density < 1 aumenta o espaço
+// (menos LEDs). density = 1 é o espaço padrão (dimensão -15%).
 export const LED_DENSITY_MIN = 0.4;
 export const LED_DENSITY_MAX = 2.5;
 export const LED_DENSITY_DEFAULT = 1;
 
-const PITCH_BASE_FACTOR = 0.85; // dimensão do módulo -15%
+const GAP_BASE_FACTOR = 0.85; // espaço entre módulos = dimensão do módulo -15%
 
 export function calcLedPitch(ledModel: LedModel, rot: 0 | 90, density = LED_DENSITY_DEFAULT): { pitchX: number; pitchY: number } {
   const ledW = rot === 90 ? ledModel.height : ledModel.width;
   const ledH = rot === 90 ? ledModel.width : ledModel.height;
   const d = density > 0 ? density : LED_DENSITY_DEFAULT;
 
+  const gapX = (ledW * GAP_BASE_FACTOR) / d;
+  const gapY = (ledH * GAP_BASE_FACTOR) / d;
+
   return {
-    pitchX: (ledW * PITCH_BASE_FACTOR) / d,
-    pitchY: (ledH * PITCH_BASE_FACTOR) / d,
+    pitchX: ledW + gapX, // tamanho do módulo + espaço vazio até o próximo
+    pitchY: ledH + gapY,
   };
 }
 
