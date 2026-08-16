@@ -5,8 +5,11 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 //   VITE_SUPABASE_ANON_KEY=eyJhbGciOi...
 //
 // Essas variáveis devem ser definidas no .env local (dev) e nas variáveis de
-// ambiente do Cloudflare Pages / Railway (produção). Sem elas, o app cai
-// automaticamente para o cache local (localStorage) — ver ledModelsRepo.ts.
+// ambiente do Cloudflare Pages / Railway (produção).
+//
+// Nota: o cadastro de LEDs deixou de usar Supabase — agora é um catálogo
+// estático em src/lib/leds/ledCatalog.txt (ver src/lib/leds/ledCatalog.ts).
+// Este client fica disponível para outros usos futuros (ex.: autenticação).
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string | undefined;
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
 

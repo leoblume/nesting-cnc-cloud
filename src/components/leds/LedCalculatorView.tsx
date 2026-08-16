@@ -8,7 +8,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
-import { Lightbulb, Plus, RefreshCw, Trash2, Zap, Sun, SunMedium, Gauge } from "lucide-react";
+import { Lightbulb, RefreshCw, Trash2, Zap, Sun, SunMedium, Gauge } from "lucide-react";
 import { LedDrawingCanvas } from "./LedDrawingCanvas";
 import { LED_DENSITY_MIN, LED_DENSITY_MAX, LED_DENSITY_DEFAULT, type LedModel, type LedAssignment, type LedMode } from "@/lib/leds/ledEngine";
 import type { groupParts } from "@/lib/nesting/parser";
@@ -26,7 +26,6 @@ export function LedCalculatorView({
   ledAssignments, assignLedToGroup, clearGroupAssignment,
   ledSummary,
   ledKey, activeLedForDisplay, handleUpdateLed,
-  goToLedCad,
   fileName,
   ledMode, setLedMode,
   ledDensity, setLedDensity,
@@ -45,7 +44,6 @@ export function LedCalculatorView({
   ledKey: number;
   activeLedForDisplay: LedModel | null;
   handleUpdateLed: () => void;
-  goToLedCad: () => void;
   fileName: string;
   ledMode: LedMode;
   setLedMode: (m: LedMode) => void;
@@ -126,7 +124,7 @@ export function LedCalculatorView({
         <div className="flex flex-col gap-1.5">
           <Label className="text-[10px] text-muted-foreground uppercase tracking-wider">LED padrão</Label>
           {ledModels.length === 0 ? (
-            <p className="text-xs text-muted-foreground italic">Cadastre um LED na aba "Cadastro LED"</p>
+            <p className="text-xs text-muted-foreground italic">Nenhum LED no catálogo (src/lib/leds/ledCatalog.txt)</p>
           ) : (
             <div className="flex gap-2">
               <Select value={selectedLedId ?? ""} onValueChange={(v) => { setSelectedLedId(v); setRenderedLedId(v); setLedKey((k) => k + 1); }}>
@@ -241,10 +239,8 @@ export function LedCalculatorView({
         ) : ledModels.length === 0 ? (
           <div className="flex flex-1 items-center justify-center flex-col gap-2">
             <Zap className="h-8 w-8 text-muted-foreground/30" />
-            <p className="text-sm text-muted-foreground">Cadastre um LED para calcular o posicionamento.</p>
-            <Button variant="secondary" className="mt-2 text-xs h-8" onClick={goToLedCad}>
-              <Plus className="h-3.5 w-3.5 mr-1" /> Cadastrar LED
-            </Button>
+            <p className="text-sm text-muted-foreground">Nenhum LED no catálogo.</p>
+            <p className="text-xs text-muted-foreground/70">Adicione um modelo em src/lib/leds/ledCatalog.txt</p>
           </div>
         ) : (
           <div className="flex flex-1 flex-col overflow-hidden">

@@ -6,9 +6,10 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Printer, Receipt } from "lucide-react";
+import { Printer, Receipt, PaintBucket } from "lucide-react";
 import type { NestingOptions } from "@/lib/nesting/nesting";
 import type { groupParts } from "@/lib/nesting/parser";
+import { estimatePaintForSheets, formatMl } from "@/lib/nesting/paintEstimate";
 
 export function BudgetSummaryDialog({
   open,
@@ -30,6 +31,8 @@ export function BudgetSummaryDialog({
   if (!stats) return null;
 
   const handlePrint = () => window.print();
+
+  const paint = estimatePaintForSheets(stats.perSheet.map((s: any) => s.bboxUtil));
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -67,6 +70,28 @@ export function BudgetSummaryDialog({
                 </span>
               )}
             </div>
+          </section>
+
+          <section className="rounded-md border border-border p-3 space-y-1.5">
+            <div className="flex justify-between items-center">
+              <span className="text-muted-foreground flex items-center gap-1.5">
+                <PaintBucket className="h-3.5 w-3.5" /> Estimativa de tinta
+              </span>
+              <span className="font-medium text-cyan-400">{formatMl(paint.totalMl)}</span>
+            </div>
+            {stats.perSheet.length > 1 && (
+              <div className="pl-2 flex flex-col gap-0.5">
+                {stats.perSheet.map((s: any, i: number) => (
+                  <div key={s.index} className="flex justify-between text-[11px] text-muted-foreground">
+                    <span>Chapa {s.index} ({(s.bboxUtil * 100).toFixed(0)}% aproveit.)</span>
+                    <span className="font-medium">{formatMl(paint.perSheetMl[i])}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            <p className="text-[10px] text-muted-foreground/60 pt-0.5">
+              Regra: aproveitamento ≥50% → 1 chapa = 1L · 25–50% → 500ml · &lt;25% → 200ml
+            </p>
           </section>
 
           <section className="rounded-md border border-border p-3 space-y-1.5">

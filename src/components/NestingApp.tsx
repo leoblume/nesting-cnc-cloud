@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Layers, Lightbulb, Package } from "lucide-react";
+import { Layers, Lightbulb } from "lucide-react";
 import { HeaderActions } from "@/components/HeaderActions";
 
 import { parsePdf, groupParts, type ParsedPart } from "@/lib/nesting/parser";
@@ -7,13 +7,12 @@ import { runNesting, type NestResult, type NestingOptions } from "@/lib/nesting/
 import { renderSheet } from "@/lib/nesting/render";
 import { detectOverlaps } from "@/lib/nesting/overlapCheck";
 
-import { fetchLedModels, getCachedLedModels } from "@/lib/leds/ledModelsRepo";
+import { STATIC_LED_MODELS } from "@/lib/leds/ledCatalog";
 import { calcLedPitch, calcLedsForPart, calcLedsForBbox, LED_DENSITY_DEFAULT, type LedModel, type LedAssignment, type LedMode } from "@/lib/leds/ledEngine";
 
 import { NestingSidebar } from "@/components/nesting/NestingSidebar";
 import { NestingMainView } from "@/components/nesting/NestingMainView";
 import { LedCalculatorView } from "@/components/leds/LedCalculatorView";
-import { LedCadView } from "@/components/leds/LedCadView";
 import { BudgetSummaryDialog } from "@/components/leds/BudgetSummaryDialog";
 
 export default function NestingApp() {
@@ -28,13 +27,12 @@ export default function NestingApp() {
   const [result, setResult] = useState<NestResult | null>(null);
   const [activeSheet, setActiveSheet] = useState(0);
   const [parseError, setParseError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"nesting" | "leds" | "ledcad">("nesting");
+  const [activeTab, setActiveTab] = useState<"nesting" | "leds">("nesting");
   const [showBudget, setShowBudget] = useState(false);
   const [opts, setOpts] = useState<NestingOptions>({ sheetWidth: 1210, sheetHeight: 2420, gap: 5, margin: 10, allowRotation: true, allowMirror: false, rotationStep: 90 });
 
-  // ── Parte 2: LEDs (cadastro + cálculo de posicionamento) ────────────────
-  const [ledModels, setLedModels] = useState<LedModel[]>(() => getCachedLedModels());
-  const [ledModelsLoading, setLedModelsLoading] = useState(true);
+  // ── Parte 2: LEDs (catálogo estático + cálculo de posicionamento) ───────
+  const ledModels = STATIC_LED_MODELS;
   const [selectedLedId, setSelectedLedId] = useState<string | null>(() => {
     try { return localStorage.getItem("nestcnc_led_selected"); } catch { return null; }
   });
@@ -108,15 +106,6 @@ export default function NestingApp() {
       setNestProgress(null);
     }
   }, [parts, opts]);
-
-  useEffect(() => {
-    let cancelled = false;
-    setLedModelsLoading(true);
-    fetchLedModels().then((models) => {
-      if (!cancelled) { setLedModels(models); setLedModelsLoading(false); }
-    });
-    return () => { cancelled = true; };
-  }, []);
 
   useEffect(() => {
     try {
@@ -228,9 +217,6 @@ export default function NestingApp() {
           <button onClick={() => setActiveTab("leds")} className={`flex items-center gap-1.5 rounded px-2 py-1 text-xs font-medium transition-colors sm:px-3 ${activeTab === "leds" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}>
             <Lightbulb className="h-3.5 w-3.5" /> <span className="hidden sm:inline">LEDs</span>
           </button>
-          <button onClick={() => setActiveTab("ledcad")} className={`flex items-center gap-1.5 rounded px-2 py-1 text-xs font-medium transition-colors sm:px-3 ${activeTab === "ledcad" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}>
-            <Package className="h-3.5 w-3.5" /> <span className="hidden sm:inline">Cadastro LED</span>
-          </button>
         </div>
         <HeaderActions
           result={result}
@@ -301,22 +287,11 @@ export default function NestingApp() {
               ledKey={ledKey}
               activeLedForDisplay={activeLedForDisplay}
               handleUpdateLed={handleUpdateLed}
-              goToLedCad={() => setActiveTab("ledcad")}
               fileName={fileName}
               ledMode={ledMode}
               setLedMode={setLedMode}
               ledDensity={ledDensity}
               setLedDensity={setLedDensity}
-            />
-          )}
-
-          {activeTab === "ledcad" && (
-            <LedCadView
-              ledModels={ledModels}
-              setLedModels={setLedModels}
-              ledModelsLoading={ledModelsLoading}
-              selectedLedId={selectedLedId}
-              setSelectedLedId={setSelectedLedId}
             />
           )}
         </div>
