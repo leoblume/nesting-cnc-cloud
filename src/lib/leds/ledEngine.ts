@@ -138,20 +138,29 @@ export function shrinkPolygon(poly: Point[], margin: number): Point[] {
   return offsetPolygon(poly, -margin);
 }
 
-// ─── Pitch: padronizado — a distância entre LEDs é a MAIOR medida do módulo
-// (largura ou altura), a mesma em qualquer direção (evita o bug de módulos
-// sobrepostos em trechos retos na horizontal, que acontecia quando X e Y
-// usavam fórmulas diferentes). `density` (barra de ajuste) escala essa
-// distância dinamicamente: density > 1 encolhe (mais LEDs), density < 1
-// aumenta (menos LEDs). density = 1 = distância padrão (maior medida do LED).
+// ─── Pitch: a distância ENTRE módulos (espaço vazio, tanto na altura quanto
+// na largura) é 85% da MAIOR medida do LED (em geral a largura). O pitch
+// real (centro a centro) = dimensão do módulo naquele eixo + esse espaço —
+// usar o espaço diretamente como pitch fazia os módulos ficarem praticamente
+// unidos (pitch ≈ tamanho do próprio módulo, folga ≈ 0).
+// `density` (barra de ajuste) escala o espaço dinamicamente: density > 1
+// encolhe (mais LEDs), density < 1 aumenta (menos LEDs). density = 1 = folga
+// padrão (85% da maior medida do LED).
 export const LED_DENSITY_MIN = 0.4;
 export const LED_DENSITY_MAX = 2.5;
 export const LED_DENSITY_DEFAULT = 1;
 
-export function calcLedPitch(ledModel: LedModel, _rot: 0 | 90 = 0, density = LED_DENSITY_DEFAULT): { pitchX: number; pitchY: number } {
+const GAP_FACTOR = 0.85; // folga entre módulos = 85% da maior medida do LED
+
+export function calcLedPitch(ledModel: LedModel, rot: 0 | 90 = 0, density = LED_DENSITY_DEFAULT): { pitchX: number; pitchY: number } {
   const d = density > 0 ? density : LED_DENSITY_DEFAULT;
-  const dist = Math.max(ledModel.width, ledModel.height) / d;
-  return { pitchX: dist, pitchY: dist };
+  const ledW = rot === 90 ? ledModel.height : ledModel.width;
+  const ledH = rot === 90 ? ledModel.width : ledModel.height;
+  // Maior medida é sempre a do módulo cadastrado (fixa, independe da rotação de desenho)
+  const maxDim = Math.max(ledModel.width, ledModel.height);
+  const gap = (maxDim * GAP_FACTOR) / d;
+
+  return { pitchX: ledW + gap, pitchY: ledH + gap };
 }
 
 // Tenta encolher o polígono com margem 5mm→3mm até sobrar área útil para pelo
@@ -251,16 +260,18 @@ function detectChannelBand(
   return { isChannel, bandWidth };
 }
 
-// ─── Estima a METADE da espessura local de um contorno SÓLIDO (sem furo),
-// como os traços de uma letra maciça (ex.: barras retas do "E"). Para uma
-// tira longa e fina de largura w, área/perímetro → w/2 (aproximação
-// assintótica padrão de geometria) — ou seja, essa razão já cai bem perto do
-// deslocamento necessário para alcançar a linha central a partir da borda.
-function estimateSolidHalfThickness(outer: Point[]): number {
-  const area = polygonArea(outer);
-  const perim = polygonPerimeter(outer);
-  if (perim <= 0) return 0;
-  return area / perim;
+// Verifica se um polígono "encolhido" (offset para dentro) ainda é uma forma
+// utilizável — ou seja, se o recuo não colapsou/degenerou o contorno. Usado
+// para decidir com segurança (por região real, não por estimativa global) se
+// dá para seguir o perímetro ou se é preciso cair para a linha central.
+function isUsablePath(work: Point[], original: Point[]): boolean {
+  if (work.length < 3) return false;
+  const workArea = polygonArea(work);
+  const origArea = polygonArea(original);
+  if (workArea <= 0 || origArea <= 0) return false;
+  // Encolheu demais (ex.: < 3% da área original) → sinal de degeneração —
+  // trecho fino demais para essa margem, melhor cair para linha central.
+  return workArea / origArea > 0.03;
 }
 
 // ── ENGINE — modo "backlight" (grade preenchendo a área total da letra) ───
@@ -344,9 +355,11 @@ export function calcLedsPerimeter(
 
   const ledW = rotation === 90 ? ledModel.height : ledModel.width;
   const ledH = rotation === 90 ? ledModel.width : ledModel.height;
-  const maxLedDim = Math.max(ledW, ledH);
   const { pitchX, pitchY } = calcLedPitch(ledModel, rotation, density);
-  const pathSpacing = pitchX; // pitchX === pitchY (pitch único/padronizado)
+  // O módulo é desenhado com a largura atravessada no canal e a altura ao
+  // longo do trajeto (ver rotação no canvas) — por isso o espaçamento ao
+  // longo do caminho usa pitchY (altura do módulo + folga).
+  const pathSpacing = pitchY;
 
   const { isChannel, bandWidth } = detectChannelBand(polygon, holes);
 
@@ -360,23 +373,22 @@ export function calcLedsPerimeter(
     path = offsetPolygon(polygon, -half);
     usedCenterline = true;
   } else {
-    // Letra espessa/sólida (sem furo formando canal) — regra: recuar da
-    // borda pela margem 5mm→3mm; se o espaço útil que sobrar (largura do
-    // traço já descontada a margem dos dois lados) for igual ou inferior à
-    // maior medida do módulo, não há como acomodar uma "moldura" — nesse
-    // caso calcula-se 1 linha de módulos no meio da peça (linha central),
-    // igual ao canal fino. Caso contrário, segue no perímetro (recuado).
-    const halfThickness = estimateSolidHalfThickness(polygon);
-    const fullThicknessEst = 2 * halfThickness;
-    const usableAtMinMargin = fullThicknessEst - 2 * LED_BORDER_MARGIN_MIN_MM;
+    // Letra espessa/sólida (sem furo formando canal) — SEMPRE tenta primeiro
+    // acompanhar o contorno real lido do PDF, recuado pela margem 5mm→3mm
+    // (shrinkWithFallback já reduz a margem automaticamente até caber).
+    // Só cai para 1 linha central se o recuo realmente degenerar o contorno
+    // (traço fino demais mesmo com a margem mínima) — decisão baseada na
+    // geometria real, não numa estimativa global (que falhava em letras com
+    // traços de espessura mista, como o "E").
+    const { work } = shrinkWithFallback(polygon, ledW, ledH);
 
-    if (fullThicknessEst > 0 && usableAtMinMargin <= maxLedDim) {
-      path = offsetPolygon(polygon, -Math.max(0.5, halfThickness));
-      usedCenterline = true;
-    } else {
-      const { work } = shrinkWithFallback(polygon, ledW, ledH);
+    if (isUsablePath(work, polygon)) {
       path = work;
       usedCenterline = false;
+    } else {
+      const half = Math.max(0.5, LED_BORDER_MARGIN_MIN_MM);
+      path = offsetPolygon(polygon, -half);
+      usedCenterline = true;
     }
   }
 
@@ -436,8 +448,8 @@ export function calcLedsForBbox(
     const rect: Point[] = [{ x: 0, y: 0 }, { x: W, y: 0 }, { x: W, y: H }, { x: 0, y: H }];
     const { pitchX, pitchY } = calcLedPitch(ledModel, 0, density);
     const { work } = shrinkWithFallback(rect, ledModel.width, ledModel.height);
-    const positions = distributeAlongClosedPath(work, pitchX);
-    return { ledsX: 0, ledsY: 0, totalLeds: positions.length, pitch: pitchX, pitchX, pitchY };
+    const positions = distributeAlongClosedPath(work, pitchY);
+    return { ledsX: 0, ledsY: 0, totalLeds: positions.length, pitch: pitchY, pitchX, pitchY };
   }
 
   const usableW = W - LED_BORDER_MARGIN_MIN_MM * 2;
