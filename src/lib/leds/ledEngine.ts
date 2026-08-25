@@ -1,6 +1,7 @@
 // ─── Motor de Cálculo de LEDs — Grid + Perímetro híbrido (Parte 2) ─────────
 // Cálculo 100% local no navegador (sem chamadas de servidor/IA).
 import { type Point } from "@/lib/nesting/geometry";
+import ClipperLib from "clipper-lib";
 
 export interface LedModel {
   id: string;
@@ -73,64 +74,51 @@ function polygonBounds(poly: Point[]) {
   return { minX, minY, maxX, maxY, w: maxX - minX, h: maxY - minY };
 }
 
-// ─── Offset de polígono (buffer) por normal-por-aresta + interseção de arestas
-// adjacentes (miter), com fallback em bisel para cantos degenerados/agudos.
-// d > 0 expande para fora, d < 0 encolhe para dentro — funciona independente
-// do sentido de enrolamento (CW/CCW) do polígono de entrada.
-export function offsetPolygon(poly: Point[], d: number): Point[] {
-  const n = poly.length;
-  if (d === 0 || n < 3) return poly;
+// ─── Offset de polígono (recuo/expansão) via Clipper ───────────────────────
+// Antes calculávamos o offset "na mão" (normal de cada aresta + interseção
+// miter entre arestas vizinhas). Isso funciona bem em cantos convexos, mas
+// em cantos CÔNCAVOS (reentrâncias — exatamente onde letras como E/S têm
+// vãos apertados) o vértice podia ser deslocado na direção errada,
+// produzindo um contorno que se auto-intersecta ("linha dupla"/bowtie) em
+// vez de encolher de verdade. Trocamos por Clipper (biblioteca padrão da
+// indústria para offset poligonal em CAM/CNC), que trata vértices côncavos
+// corretamente e nunca deixa o resultado se auto-intersectar — em vez
+// disso, colapsa (ou divide) a forma de maneira geometricamente válida.
+// d > 0 expande para fora, d < 0 encolhe para dentro.
+// Retorna [] se o recuo eliminar a forma inteira (ex.: traço mais fino que
+// 2× a margem pedida) — sinal honesto de "não cabe", em vez de uma
+// geometria inválida. Se o recuo dividir a forma em mais de um pedaço,
+// retorna o maior (por área); o motor de LEDs trabalha com um único
+// contorno por peça.
+const CLIPPER_SCALE = 1000; // mm → unidades inteiras do Clipper (precisão de 0.001mm)
 
-  let signedArea = 0;
-  for (let i = 0; i < n; i++) {
-    const p = poly[i], q = poly[(i + 1) % n];
-    signedArea += p.x * q.y - q.x * p.y;
-  }
-  const sign = signedArea >= 0 ? 1 : -1;
-
-  const edgeNormals: Point[] = [];
-  for (let i = 0; i < n; i++) {
-    const a = poly[i], b = poly[(i + 1) % n];
-    const dx = b.x - a.x, dy = b.y - a.y;
-    const len = Math.hypot(dx, dy) || 1;
-    let nx = dy / len, ny = -dx / len;
-    if (sign < 0) { nx = -nx; ny = -ny; }
-    edgeNormals.push({ x: nx, y: ny });
-  }
-
-  const miterLimit = Math.max(4, Math.abs(d) * 4);
-  const result: Point[] = [];
-
-  for (let i = 0; i < n; i++) {
-    const prevIdx = (i - 1 + n) % n;
-    const v = poly[i];
-    const nPrev = edgeNormals[prevIdx];
-    const nCur = edgeNormals[i];
-
-    const prevA = poly[prevIdx];
-    const p1 = { x: prevA.x + nPrev.x * d, y: prevA.y + nPrev.y * d };
-    const p2 = { x: v.x + nPrev.x * d, y: v.y + nPrev.y * d };
-    const p3 = { x: v.x + nCur.x * d, y: v.y + nCur.y * d };
-    const nextB = poly[(i + 1) % n];
-    const p4 = { x: nextB.x + nCur.x * d, y: nextB.y + nCur.y * d };
-
-    const miter = lineLineIntersect(p1, p2, p3, p4);
-    if (miter && Math.hypot(miter.x - v.x, miter.y - v.y) <= miterLimit) {
-      result.push(miter);
-    } else {
-      result.push(p2, p3);
-    }
-  }
-  return result;
+function toClipperPath(poly: Point[]): { X: number; Y: number }[] {
+  return poly.map((p) => ({ X: Math.round(p.x * CLIPPER_SCALE), Y: Math.round(p.y * CLIPPER_SCALE) }));
 }
 
-function lineLineIntersect(p1: Point, p2: Point, p3: Point, p4: Point): Point | null {
-  const d1x = p2.x - p1.x, d1y = p2.y - p1.y;
-  const d2x = p4.x - p3.x, d2y = p4.y - p3.y;
-  const denom = d1x * d2y - d1y * d2x;
-  if (Math.abs(denom) < 1e-9) return null;
-  const t = ((p3.x - p1.x) * d2y - (p3.y - p1.y) * d2x) / denom;
-  return { x: p1.x + d1x * t, y: p1.y + d1y * t };
+function fromClipperPath(path: { X: number; Y: number }[]): Point[] {
+  return path.map((p) => ({ x: p.X / CLIPPER_SCALE, y: p.Y / CLIPPER_SCALE }));
+}
+
+export function offsetPolygon(poly: Point[], d: number): Point[] {
+  if (poly.length < 3 || d === 0) return poly;
+
+  const co = new ClipperLib.ClipperOffset();
+  co.AddPath(toClipperPath(poly), ClipperLib.JoinType.jtRound, ClipperLib.EndType.etClosedPolygon);
+  const solution = new ClipperLib.Paths();
+  co.Execute(solution, d * CLIPPER_SCALE);
+  if (!solution.length) return [];
+
+  // Pode retornar mais de um contorno se o recuo dividir a peça em partes
+  // desconexas — ficamos com a maior (por área).
+  let best: Point[] = [];
+  let bestArea = -1;
+  for (const path of solution) {
+    const pts = fromClipperPath(path);
+    const a = polygonArea(pts);
+    if (a > bestArea) { bestArea = a; best = pts; }
+  }
+  return best;
 }
 
 // Encolhe o polígono para dentro por `margin` mm (atalho para offsetPolygon(poly, -margin))
@@ -395,7 +383,12 @@ export function calcLedsPerimeter(
     }
   }
 
-  if (path.length < 3) return { totalLeds: 0, pitch: pathSpacing, pitchX, pitchY, positions: [], usedCenterline };
+  if (path.length < 3) {
+    // Último recurso: nem a margem mínima nem a linha central couberam
+    // (traço extremamente fino) — usa o contorno original sem recuo, para
+    // não deixar a peça sem nenhum LED.
+    path = polygon;
+  }
 
   const positions = distributeAlongClosedPath(path, pathSpacing);
 
