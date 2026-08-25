@@ -95,6 +95,11 @@ export function printLedPlan(
         const rawH = bestRotation === 90 ? ledModel.width : ledModel.height;
         const lw = Math.max(3, rawW * S);
         const lh = Math.max(3, rawH * S);
+        // Modo com traçado (perímetro/linha-central): maior medida do
+        // catálogo ao longo do caminho, menor atravessando a faixa — mesma
+        // regra usada no desenho em tela (LedDrawingCanvas.tsx).
+        const alongPathDim = Math.max(3, Math.max(ledModel.width, ledModel.height) * S);
+        const crossPathDim = Math.max(3, Math.min(ledModel.width, ledModel.height) * S);
         for (const pos of positions) {
           const lx = ox + (pos.x - pminX) * S;
           const ly = oy + (pos.y - pminY) * S;
@@ -103,8 +108,8 @@ export function printLedPlan(
             ctx.save();
             ctx.translate(lx, ly);
             ctx.rotate(pos.angle + Math.PI / 2);
-            ctx.fillRect(-lw / 2, -lh / 2, lw, lh);
-            ctx.strokeRect(-lw / 2, -lh / 2, lw, lh);
+            ctx.fillRect(-crossPathDim / 2, -alongPathDim / 2, crossPathDim, alongPathDim);
+            ctx.strokeRect(-crossPathDim / 2, -alongPathDim / 2, crossPathDim, alongPathDim);
             ctx.restore();
           } else {
             ctx.fillRect(lx - lw / 2, ly - lh / 2, lw, lh);

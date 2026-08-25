@@ -126,6 +126,15 @@ export function LedDrawingCanvas({
           const ledW = Math.max(2, rawW * s);
           const ledH = Math.max(2, rawH * s);
 
+          // Modo retroiluminada (perímetro/linha-central): o módulo gira para
+          // acompanhar o traçado. Não assumimos qual coluna do catálogo
+          // (largura/altura) é a maior — usamos a MAIOR medida ao longo do
+          // caminho e a MENOR atravessando a faixa/canal, senão módulos
+          // cadastrados como "largura maior que altura" (ex.: 30×9) ficam
+          // deitados atravessando trechos estreitos da peça.
+          const alongPathDim = Math.max(2, Math.max(ledModel.width, ledModel.height) * s);
+          const crossPathDim = Math.max(2, Math.min(ledModel.width, ledModel.height) * s);
+
           for (const pos of positions) {
             const lx = ox + (pos.x - pminX) * s;
             const ly = oy + (pos.y - pminY) * s;
@@ -133,13 +142,13 @@ export function LedDrawingCanvas({
             ctx.strokeStyle = "#a16207";
             ctx.lineWidth = 0.5;
             if (pos.angle) {
-              // Modo retroiluminada: módulo acompanha a direção do caminho
-              // (perímetro/linha central), com a largura atravessando a faixa.
+              // Eixo local X (após a rotação) = direção que atravessa o canal;
+              // eixo local Y = direção ao longo do caminho.
               ctx.save();
               ctx.translate(lx, ly);
               ctx.rotate(pos.angle + Math.PI / 2);
-              ctx.fillRect(-ledW / 2, -ledH / 2, ledW, ledH);
-              ctx.strokeRect(-ledW / 2, -ledH / 2, ledW, ledH);
+              ctx.fillRect(-crossPathDim / 2, -alongPathDim / 2, crossPathDim, alongPathDim);
+              ctx.strokeRect(-crossPathDim / 2, -alongPathDim / 2, crossPathDim, alongPathDim);
               ctx.restore();
             } else {
               ctx.fillRect(lx - ledW / 2, ly - ledH / 2, ledW, ledH);

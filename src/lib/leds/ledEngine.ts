@@ -356,10 +356,13 @@ export function calcLedsPerimeter(
   const ledW = rotation === 90 ? ledModel.height : ledModel.width;
   const ledH = rotation === 90 ? ledModel.width : ledModel.height;
   const { pitchX, pitchY } = calcLedPitch(ledModel, rotation, density);
-  // O módulo é desenhado com a largura atravessada no canal e a altura ao
-  // longo do trajeto (ver rotação no canvas) — por isso o espaçamento ao
-  // longo do caminho usa pitchY (altura do módulo + folga).
-  const pathSpacing = pitchY;
+  // O módulo é desenhado girando para acompanhar o traçado: a MAIOR medida
+  // cadastrada (largura ou altura, o que for maior) corre ao longo do
+  // caminho, e a MENOR atravessa a faixa/canal (ver rotação no canvas).
+  // Não assumimos qual coluna é maior — o catálogo pode cadastrar módulos
+  // compridos como "largura" (ex.: 30×9) — por isso usamos o maior pitch
+  // para o espaçamento ao longo do caminho.
+  const pathSpacing = Math.max(pitchX, pitchY);
 
   const { isChannel, bandWidth } = detectChannelBand(polygon, holes);
 
@@ -448,8 +451,11 @@ export function calcLedsForBbox(
     const rect: Point[] = [{ x: 0, y: 0 }, { x: W, y: 0 }, { x: W, y: H }, { x: 0, y: H }];
     const { pitchX, pitchY } = calcLedPitch(ledModel, 0, density);
     const { work } = shrinkWithFallback(rect, ledModel.width, ledModel.height);
-    const positions = distributeAlongClosedPath(work, pitchY);
-    return { ledsX: 0, ledsY: 0, totalLeds: positions.length, pitch: pitchY, pitchX, pitchY };
+    // Mesma regra do modo perímetro real: espaçamento ao longo do caminho
+    // usa a MAIOR medida do módulo (não assume qual coluna é maior).
+    const pathSpacing = Math.max(pitchX, pitchY);
+    const positions = distributeAlongClosedPath(work, pathSpacing);
+    return { ledsX: 0, ledsY: 0, totalLeds: positions.length, pitch: pathSpacing, pitchX, pitchY };
   }
 
   const usableW = W - LED_BORDER_MARGIN_MIN_MM * 2;
