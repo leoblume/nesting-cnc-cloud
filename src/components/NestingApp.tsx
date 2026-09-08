@@ -194,7 +194,7 @@ export default function NestingApp() {
   const currentSheetParts = result?.sheets[activeSheet] ?? [];
   const activeLedForDisplay = ledModels.find((l) => l.id === renderedLedId) ?? null;
 
-  const computedPitch = selectedLed ? calcLedPitch(selectedLed, 0, ledDensity) : null;
+  const computedPitch = selectedLed ? calcLedPitch(selectedLed, 0, ledDensity, ledMode) : null;
 
   return (
     <div className="flex h-screen flex-col bg-background text-foreground">

@@ -127,26 +127,42 @@ export function shrinkPolygon(poly: Point[], margin: number): Point[] {
 }
 
 // ─── Pitch: a distância ENTRE módulos (espaço vazio, tanto na altura quanto
-// na largura) é 85% da MAIOR medida do LED (em geral a largura). O pitch
-// real (centro a centro) = dimensão do módulo naquele eixo + esse espaço —
-// usar o espaço diretamente como pitch fazia os módulos ficarem praticamente
-// unidos (pitch ≈ tamanho do próprio módulo, folga ≈ 0).
-// `density` (barra de ajuste) escala o espaço dinamicamente: density > 1
-// encolhe (mais LEDs), density < 1 aumenta (menos LEDs). density = 1 = folga
-// padrão (85% da maior medida do LED).
+// na largura) é uma fração da MAIOR medida do LED (em geral a largura). O
+// pitch real (centro a centro) = dimensão do módulo naquele eixo + esse
+// espaço — usar o espaço diretamente como pitch fazia os módulos ficarem
+// praticamente unidos (pitch ≈ tamanho do próprio módulo, folga ≈ 0).
+// `density` (barra de ajuste) escala o espaço — mas o SENTIDO depende do modo:
+//  - retroiluminada: density > 1 encolhe o espaço (mais LEDs), density < 1
+//    aumenta o espaço (menos LEDs). density = 1 = folga padrão (85% da maior
+//    medida do LED).
+//  - backlight: parte de uma grade de alta densidade por padrão (folga bem
+//    menor, para preencher a área toda de forma uniforme, como espera-se de
+//    uma chapa difusora). Aqui a barra funciona ao contrário: quanto MAIOR o
+//    valor, MAIOR o espaço entre módulos (menos LEDs) — é um controle de
+//    "espaçamento", não de densidade extra, já que o padrão já é denso.
 export const LED_DENSITY_MIN = 0.4;
 export const LED_DENSITY_MAX = 2.5;
 export const LED_DENSITY_DEFAULT = 1;
 
-const GAP_FACTOR = 0.85; // folga entre módulos = 85% da maior medida do LED
+const GAP_FACTOR = 0.85; // retroiluminada — folga padrão = 85% da maior medida do LED
+const BACKLIGHT_GAP_FACTOR = 0.35; // backlight — folga padrão bem menor (grade densa)
 
-export function calcLedPitch(ledModel: LedModel, rot: 0 | 90 = 0, density = LED_DENSITY_DEFAULT): { pitchX: number; pitchY: number } {
+export function calcLedPitch(
+  ledModel: LedModel,
+  rot: 0 | 90 = 0,
+  density = LED_DENSITY_DEFAULT,
+  mode: LedMode = "retroiluminada",
+): { pitchX: number; pitchY: number } {
   const d = density > 0 ? density : LED_DENSITY_DEFAULT;
   const ledW = rot === 90 ? ledModel.height : ledModel.width;
   const ledH = rot === 90 ? ledModel.width : ledModel.height;
   // Maior medida é sempre a do módulo cadastrado (fixa, independe da rotação de desenho)
   const maxDim = Math.max(ledModel.width, ledModel.height);
-  const gap = (maxDim * GAP_FACTOR) / d;
+
+  const gap =
+    mode === "backlight"
+      ? maxDim * BACKLIGHT_GAP_FACTOR * d // barra aumenta → mais espaço (menos LEDs)
+      : (maxDim * GAP_FACTOR) / d; // barra aumenta → menos espaço (mais LEDs)
 
   return { pitchX: ledW + gap, pitchY: ledH + gap };
 }
@@ -275,7 +291,7 @@ export function calcLedsGrid(
   const ledW = rotation === 90 ? ledModel.height : ledModel.width;
   const ledH = rotation === 90 ? ledModel.width : ledModel.height;
 
-  const { pitchX, pitchY } = calcLedPitch(ledModel, rotation, density);
+  const { pitchX, pitchY } = calcLedPitch(ledModel, rotation, density, "backlight");
 
   // Margem de recuo interna aplicada nas bordas externas do polígono (5mm→3mm)
   const { work: workPoly } = shrinkWithFallback(polygon, ledW, ledH);
@@ -457,7 +473,7 @@ export function calcLedsForBbox(
   const compute = (rot: 0 | 90) => {
     const ledW = rot === 90 ? ledModel.height : ledModel.width;
     const ledH = rot === 90 ? ledModel.width : ledModel.height;
-    const { pitchX, pitchY } = calcLedPitch(ledModel, rot, density);
+    const { pitchX, pitchY } = calcLedPitch(ledModel, rot, density, "backlight");
     if (usableW <= 0 || usableH <= 0 || usableW < ledW || usableH < ledH) {
       return { ledsX: 0, ledsY: 0, totalLeds: 0, pitchX, pitchY };
     }

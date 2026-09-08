@@ -109,7 +109,7 @@ export function LedCalculatorView({
             onValueChange={([v]) => setLedDensity(v)}
           />
           <div className="flex items-center justify-between text-[9px] text-muted-foreground/70">
-            <span>← mais espaço (menos LEDs)</span>
+            <span>{ledMode === "backlight" ? "← mais denso (mais LEDs)" : "← mais espaço (menos LEDs)"}</span>
             <button
               onClick={() => setLedDensity(LED_DENSITY_DEFAULT)}
               className="underline decoration-dotted hover:text-yellow-300"
@@ -117,8 +117,13 @@ export function LedCalculatorView({
             >
               padrão
             </button>
-            <span>mais denso (mais LEDs) →</span>
+            <span>{ledMode === "backlight" ? "mais espaço (menos LEDs) →" : "mais denso (mais LEDs) →"}</span>
           </div>
+          {ledMode === "backlight" && (
+            <p className="text-[9px] text-muted-foreground/60 -mt-1">
+              Backlight já parte de uma grade de alta densidade por padrão; a barra aqui controla o espaçamento extra entre módulos.
+            </p>
+          )}
         </div>
 
         <div className="flex flex-col gap-1.5">
