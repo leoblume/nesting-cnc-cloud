@@ -6,10 +6,15 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Printer, Receipt, PaintBucket } from "lucide-react";
+import { Printer, Receipt, PaintBucket, Ruler } from "lucide-react";
 import type { NestingOptions } from "@/lib/nesting/nesting";
 import type { groupParts } from "@/lib/nesting/parser";
+import { polygonPerimeter } from "@/lib/nesting/geometry";
 import { estimatePaintForSheets, formatMl } from "@/lib/nesting/paintEstimate";
+
+function formatMeters(m: number) {
+  return `${m.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} m`;
+}
 
 export function BudgetSummaryDialog({
   open,
@@ -33,6 +38,14 @@ export function BudgetSummaryDialog({
   const handlePrint = () => window.print();
 
   const paint = estimatePaintForSheets(stats.perSheet.map((s: any) => s.bboxUtil));
+
+  // Metragem total de corte: soma do perímetro externo + furos de cada peça (todas as unidades)
+  const allParts = groups.flatMap((g) => g.parts);
+  const totalCutMm = allParts.reduce((sum, part: any) => {
+    const holesMm = (part.holes ?? []).reduce((s: number, h: any) => s + polygonPerimeter(h), 0);
+    return sum + part.perimeter + holesMm;
+  }, 0);
+  const totalCutMeters = totalCutMm / 1000;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -91,6 +104,18 @@ export function BudgetSummaryDialog({
             )}
             <p className="text-[10px] text-muted-foreground/60 pt-0.5">
               Regra: aproveitamento ≥50% → 1 chapa = 1L · 25–50% → 500ml · &lt;25% → 200ml
+            </p>
+          </section>
+
+          <section className="rounded-md border border-border p-3 space-y-1.5">
+            <div className="flex justify-between items-center">
+              <span className="text-muted-foreground flex items-center gap-1.5">
+                <Ruler className="h-3.5 w-3.5" /> Metragem total de corte
+              </span>
+              <span className="font-medium text-blue-400">{formatMeters(totalCutMeters)}</span>
+            </div>
+            <p className="text-[10px] text-muted-foreground/60 pt-0.5">
+              Soma do perímetro externo + furos de todas as peças (× quantidade)
             </p>
           </section>
 
